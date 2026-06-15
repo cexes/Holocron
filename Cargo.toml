@@ -1,0 +1,55 @@
+[package]
+name = "holocron"
+version = "0.1.0"
+edition = "2021"
+description = "Cross-platform TUI terminal multiplexer with Claude MCP integration"
+license = "MIT"
+
+[[bin]]
+name = "holocron"
+path = "src/main.rs"
+
+[dependencies]
+# TUI
+ratatui = "0.29"
+crossterm = { version = "0.28", features = ["event-stream"] }
+futures = "0.3"
+
+# PTY (cross-platform: ConPTY on Windows, Unix PTY on Mac/Linux)
+portable-pty = "0.8"
+
+# ANSI/VT100 terminal emulation
+vt100 = "0.15"
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# CLI argument parsing
+clap = { version = "4", features = ["derive"] }
+
+# MCP protocol (stdio transport)
+rmcp = { version = "1", features = ["server", "transport-io", "schemars"] }
+
+# Cross-platform IPC (Unix sockets + Windows named pipes)
+interprocess = { version = "2", features = ["tokio"] }
+
+# Configuration (TOML)
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+
+# Error handling
+anyhow = "1"
+thiserror = "2"
+
+# Logging (to file, never stdout)
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-appender = "0.2"
+
+# Utilities
+dirs = "5"
+uuid = { version = "1", features = ["v4", "serde"] }
+
+[dev-dependencies]
+tempfile = "3"
