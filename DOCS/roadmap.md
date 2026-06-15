@@ -17,7 +17,7 @@
 - [ ] Multiple named sessions (`holocron new my-session`)
 - [ ] Scrollback navigation (`Prefix + [` to scroll, like tmux)
 - [ ] Copy mode (select and copy terminal text)
-- [ ] Status bar: show running command per pane
+- [x] Pane status monitor: RUNNING / IDLE / WAITING overlay per pane (`Prefix + s`)
 - [ ] Pane synchronization (broadcast to all panes)
 
 ## v0.3 — Future

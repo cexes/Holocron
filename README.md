@@ -95,6 +95,7 @@ Default prefix: **Ctrl+A** (configurable)
 | `Prefix + z` | Zoom (fullscreen) current pane |
 | `Prefix + %` | Split vertical |
 | `Prefix + "` | Split horizontal |
+| `Prefix + s` | Pane status monitor (RUNNING / IDLE / WAITING) |
 | `Prefix + ?` | Help overlay |
 | `Prefix + q` | Quit |
 
