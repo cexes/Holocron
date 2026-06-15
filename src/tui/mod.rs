@@ -139,6 +139,7 @@ fn handle_key<B: ratatui::backend::Backend>(
             match resolve_prefix_action(modifiers, code) {
                 Action::Quit => app.quit(),
                 Action::ShowHelp => app.show_help = !app.show_help,
+                Action::ShowStatus => app.show_status = !app.show_status,
                 Action::NewPane => app.new_pane(size.width, pane_rows)?,
                 Action::NextPane => app.terminals.lock().unwrap().next(),
                 Action::PrevPane => app.terminals.lock().unwrap().prev(),

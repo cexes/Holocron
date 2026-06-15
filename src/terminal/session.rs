@@ -4,6 +4,7 @@ use portable_pty::{Child, CommandBuilder, MasterPty, PtySize};
 use std::{
     io::Write,
     sync::{Arc, Mutex},
+    time::Instant,
 };
 use tokio::sync::mpsc;
 use uuid::Uuid;
@@ -12,6 +13,7 @@ pub struct TerminalSession {
     pub id: Uuid,
     pub label: String,
     pub screen: Arc<Mutex<Screen>>,
+    pub last_output_at: Arc<Mutex<Instant>>,
     master: Box<dyn MasterPty + Send>,
     /// Writer is stored so it can be reused across multiple keystrokes.
     /// take_writer() can only be called once on the PTY master.
@@ -42,18 +44,21 @@ impl TerminalSession {
         let child = pair.slave.spawn_command(cmd).context("failed to spawn shell")?;
 
         let screen = Arc::new(Mutex::new(Screen::new(rows, cols)));
+        let last_output_at = Arc::new(Mutex::new(Instant::now()));
         let reader = pair.master.try_clone_reader().context("failed to clone PTY reader")?;
         let writer = pair.master.take_writer().context("failed to take PTY writer")?;
 
         let screen_clone = Arc::clone(&screen);
+        let last_output_clone = Arc::clone(&last_output_at);
         std::thread::spawn(move || {
-            read_pty_output(reader, screen_clone, output_tx, id);
+            read_pty_output(reader, screen_clone, output_tx, id, last_output_clone);
         });
 
         Ok(Self {
             id,
             label: label.into(),
             screen,
+            last_output_at,
             writer: Mutex::new(writer),
             master: pair.master,
             _child: child,
@@ -88,6 +93,7 @@ fn read_pty_output(
     screen: Arc<Mutex<Screen>>,
     tx: mpsc::UnboundedSender<(Uuid, Vec<u8>)>,
     id: Uuid,
+    last_output_at: Arc<Mutex<Instant>>,
 ) {
     let mut buf = [0u8; 4096];
     loop {
@@ -97,6 +103,9 @@ fn read_pty_output(
                 let data = buf[..n].to_vec();
                 if let Ok(mut s) = screen.lock() {
                     s.process(&data);
+                }
+                if let Ok(mut t) = last_output_at.lock() {
+                    *t = Instant::now();
                 }
                 let _ = tx.send((id, data));
             }

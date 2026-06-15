@@ -6,6 +6,8 @@ use ratatui::{
     Frame,
 };
 
+use crate::terminal::manager::PaneStatus;
+
 use crate::app::{App, LayoutMode, Mode};
 use super::widgets::pane::PaneWidget;
 
@@ -36,6 +38,9 @@ pub fn render(frame: &mut Frame, app: &App) {
 
     if app.show_help {
         render_help_overlay(frame);
+    }
+    if app.show_status {
+        render_status_overlay(frame, app);
     }
     if app.mode == Mode::Rename {
         render_rename_popup(frame, app);
@@ -224,7 +229,7 @@ fn render_rename_popup(frame: &mut Frame, app: &App) {
 fn render_help_overlay(frame: &mut Frame) {
     let area = frame.area();
     let popup_width = 54u16.min(area.width.saturating_sub(4));
-    let popup_height = 18u16.min(area.height.saturating_sub(4));
+    let popup_height = 20u16.min(area.height.saturating_sub(4));
     let x = (area.width.saturating_sub(popup_width)) / 2;
     let y = (area.height.saturating_sub(popup_height)) / 2;
     let popup_area = Rect::new(x, y, popup_width, popup_height);
@@ -246,6 +251,7 @@ fn render_help_overlay(frame: &mut Frame) {
         Line::from("  Prefix + z        Toggle zoom (fullscreen)"),
         Line::from("  Prefix + %        Split vertical"),
         Line::from("  Prefix + \"        Split horizontal"),
+        Line::from("  Prefix + s        Pane status monitor"),
         Line::from("  Prefix + ?        Toggle this help"),
         Line::from("  Prefix + q        Quit"),
     ];
@@ -256,4 +262,78 @@ fn render_help_overlay(frame: &mut Frame) {
         .title(" Help — press ? to close ");
 
     frame.render_widget(Paragraph::new(help).block(block), popup_area);
+}
+
+fn render_status_overlay(frame: &mut Frame, app: &App) {
+    let Ok(mgr) = app.terminals.lock() else { return };
+
+    let sessions = mgr.sessions();
+    let row_count = (sessions.len().max(1) + 4) as u16;
+    let area = frame.area();
+    let popup_width = 52u16.min(area.width.saturating_sub(4));
+    let popup_height = row_count.min(area.height.saturating_sub(4));
+    let x = (area.width.saturating_sub(popup_width)) / 2;
+    let y = (area.height.saturating_sub(popup_height)) / 2;
+    let popup_area = Rect::new(x, y, popup_width, popup_height);
+
+    frame.render_widget(Clear, popup_area);
+
+    let mut lines = vec![
+        Line::from(Span::styled(
+            " Pane Status Monitor",
+            Style::default().add_modifier(Modifier::BOLD).fg(Color::Cyan),
+        )),
+        Line::from(""),
+    ];
+
+    if sessions.is_empty() {
+        lines.push(Line::from(Span::styled(
+            "  No panes open.",
+            Style::default().fg(Color::DarkGray),
+        )));
+    } else {
+        for (i, session) in sessions.iter().enumerate() {
+            let status = mgr.pane_status(i);
+            let (icon, status_color) = match status {
+                PaneStatus::Running => ("● RUNNING", Color::Green),
+                PaneStatus::Idle    => ("○ IDLE   ", Color::DarkGray),
+                PaneStatus::Waiting => ("◌ WAITING", Color::Yellow),
+            };
+
+            let is_active = i == mgr.active_index;
+            let label_style = if is_active {
+                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(Color::White)
+            };
+
+            let max_label = (popup_width as usize).saturating_sub(18).max(10);
+            let label = if session.label.len() > max_label {
+                format!("{}…", &session.label[..max_label.saturating_sub(1)])
+            } else {
+                session.label.clone()
+            };
+            let padding = " ".repeat(max_label.saturating_sub(label.len()));
+
+            lines.push(Line::from(vec![
+                Span::styled(format!("  {i}: "), Style::default().fg(Color::DarkGray)),
+                Span::styled(format!("{label}{padding}"), label_style),
+                Span::raw("  "),
+                Span::styled(icon, Style::default().fg(status_color).add_modifier(Modifier::BOLD)),
+            ]));
+        }
+    }
+
+    lines.push(Line::from(""));
+    lines.push(Line::from(Span::styled(
+        "  Prefix+s to close",
+        Style::default().fg(Color::DarkGray),
+    )));
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Cyan))
+        .title(" Status — Prefix+s to close ");
+
+    frame.render_widget(Paragraph::new(lines).block(block), popup_area);
 }

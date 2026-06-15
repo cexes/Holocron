@@ -24,6 +24,7 @@ pub struct App {
     pub zoomed: bool,
     pub should_quit: bool,
     pub show_help: bool,
+    pub show_status: bool,
     pub input_buf: String,
     /// Shared with the IPC server so Claude sees the same panes the TUI shows.
     pub terminals: Arc<Mutex<TerminalManager>>,
@@ -45,6 +46,7 @@ impl App {
             zoomed: false,
             should_quit: false,
             show_help: false,
+            show_status: false,
             input_buf: String::new(),
         }
     }

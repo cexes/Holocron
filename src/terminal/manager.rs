@@ -101,6 +101,37 @@ impl TerminalManager {
         }
     }
 
+    pub fn pane_status(&self, index: usize) -> PaneStatus {
+        let Some(session) = self.sessions.get(index) else {
+            return PaneStatus::Idle;
+        };
+
+        let elapsed = session
+            .last_output_at
+            .lock()
+            .map(|t| t.elapsed())
+            .unwrap_or(std::time::Duration::from_secs(9999));
+
+        if elapsed < std::time::Duration::from_secs(5) {
+            return PaneStatus::Running;
+        }
+
+        if let Ok(screen) = session.screen.lock() {
+            let lines = screen.text_lines(5);
+            for line in lines.iter().rev() {
+                let trimmed = line.trim();
+                if !trimmed.is_empty() {
+                    if looks_like_prompt(trimmed) {
+                        return PaneStatus::Idle;
+                    }
+                    break;
+                }
+            }
+        }
+
+        PaneStatus::Waiting
+    }
+
     /// Returns snapshot of all sessions for MCP list_terminals.
     pub fn list_info(&self) -> Vec<SessionInfo> {
         self.sessions
@@ -122,6 +153,28 @@ pub struct SessionInfo {
     pub label: String,
     pub index: usize,
     pub is_active: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PaneStatus {
+    Running,
+    Idle,
+    Waiting,
+}
+
+impl PaneStatus {
+    pub fn label(self) -> &'static str {
+        match self {
+            PaneStatus::Running => "RUNNING",
+            PaneStatus::Idle => "IDLE",
+            PaneStatus::Waiting => "WAITING",
+        }
+    }
+}
+
+fn looks_like_prompt(line: &str) -> bool {
+    let patterns = ["$ ", "% ", "# ", "> ", "❯ ", "$", "%", "#", "❯"];
+    patterns.iter().any(|p| line.ends_with(p))
 }
 
 #[cfg(test)]
