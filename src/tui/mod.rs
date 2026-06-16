@@ -145,6 +145,12 @@ fn handle_key<B: ratatui::backend::Backend>(
                 Action::PrevPane => app.terminals.lock().unwrap().prev(),
                 Action::KillPane => app.terminals.lock().unwrap().kill_active(),
                 Action::ZoomPane => app.toggle_zoom(),
+                Action::ToggleMaster => {
+                    let mut mgr = app.terminals.lock().unwrap();
+                    if let Some(id) = mgr.active().map(|s| s.id) {
+                        mgr.toggle_master(id);
+                    }
+                }
                 Action::SplitVertical => app.split_vertical(size.width, pane_rows)?,
                 Action::SplitHorizontal => app.split_horizontal(size.width, pane_rows)?,
                 Action::RenamePane => {

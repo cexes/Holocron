@@ -6,6 +6,7 @@ use uuid::Uuid;
 pub struct TerminalManager {
     sessions: Vec<TerminalSession>,
     pub active_index: usize,
+    master_id: Option<Uuid>,
     output_tx: mpsc::UnboundedSender<(Uuid, Vec<u8>)>,
     shell: String,
 }
@@ -15,12 +16,18 @@ impl TerminalManager {
         Self {
             sessions: Vec::new(),
             active_index: 0,
+            master_id: None,
             output_tx,
             shell,
         }
     }
 
     pub fn create(&mut self, label: impl Into<String>, cols: u16, rows: u16) -> Result<Uuid> {
+        // While the master pane is active, new panes spawn in the background
+        // instead of stealing focus — see toggle_master().
+        let master_is_active = self.master_id.is_some()
+            && self.active().map(|s| s.id) == self.master_id;
+
         let session = TerminalSession::spawn(
             label,
             &self.shell,
@@ -30,7 +37,9 @@ impl TerminalManager {
         )?;
         let id = session.id;
         self.sessions.push(session);
-        self.active_index = self.sessions.len() - 1;
+        if !master_is_active {
+            self.active_index = self.sessions.len() - 1;
+        }
         Ok(id)
     }
 
@@ -40,7 +49,25 @@ impl TerminalManager {
             if self.active_index >= self.sessions.len() && !self.sessions.is_empty() {
                 self.active_index = self.sessions.len() - 1;
             }
+            if self.master_id == Some(id) {
+                self.master_id = None;
+            }
         }
+    }
+
+    /// Marks `id` as the master pane, or clears it if it's already master.
+    /// While the master pane is active, creating new panes won't move focus
+    /// away from it (see `create`).
+    pub fn toggle_master(&mut self, id: Uuid) {
+        self.master_id = if self.master_id == Some(id) { None } else { Some(id) };
+    }
+
+    pub fn master_id(&self) -> Option<Uuid> {
+        self.master_id
+    }
+
+    pub fn is_master(&self, id: Uuid) -> bool {
+        self.master_id == Some(id)
     }
 
     pub fn kill_active(&mut self) {
@@ -191,6 +218,37 @@ mod tests {
     fn starts_empty() {
         let (mgr, _rx) = make_manager();
         assert!(mgr.is_empty());
+    }
+
+    #[test]
+    fn create_does_not_steal_focus_while_master_is_active() {
+        let (mut mgr, _rx) = make_manager();
+        let master_id = mgr.create("master", 80, 24).unwrap();
+        mgr.toggle_master(master_id);
+        assert!(mgr.is_master(master_id));
+
+        mgr.create("background", 80, 24).unwrap();
+        assert_eq!(mgr.active().unwrap().id, master_id);
+
+        // Navigating away makes the next creation focus normally again.
+        mgr.next();
+        assert_ne!(mgr.active().unwrap().id, master_id);
+        let third_id = mgr.create("third", 80, 24).unwrap();
+        assert_eq!(mgr.active().unwrap().id, third_id);
+    }
+
+    #[test]
+    fn toggle_master_unsets_and_kill_clears() {
+        let (mut mgr, _rx) = make_manager();
+        let id = mgr.create("a", 80, 24).unwrap();
+        mgr.toggle_master(id);
+        assert!(mgr.is_master(id));
+        mgr.toggle_master(id);
+        assert!(!mgr.is_master(id));
+
+        mgr.toggle_master(id);
+        mgr.kill(id);
+        assert_eq!(mgr.master_id(), None);
     }
 
     #[test]

@@ -103,10 +103,11 @@ fn render_single_pane(
     };
 
     let zoom_indicator = if app.zoomed { " [ZOOM] " } else { "" };
+    let master_indicator = if mgr.is_master(session.id) { " [MASTER]" } else { "" };
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(border_style)
-        .title(format!(" {}{} ", session.label, zoom_indicator));
+        .title(format!(" {}{}{} ", session.label, master_indicator, zoom_indicator));
 
     let inner = block.inner(area);
     frame.render_widget(block, area);
@@ -155,7 +156,8 @@ fn render_tab_bar(
     let active = mgr.active_index;
     let mut spans = vec![Span::raw(" ")];
     for (i, s) in mgr.sessions().iter().enumerate() {
-        let label = format!(" {}:{} ", i, s.label);
+        let master_tag = if mgr.is_master(s.id) { " [MASTER]" } else { "" };
+        let label = format!(" {}:{}{} ", i, s.label, master_tag);
         let style = if i == active {
             Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(Modifier::BOLD)
         } else {
@@ -201,12 +203,22 @@ fn render_status_bar(
         Span::raw("")
     };
 
+    let master_span = match mgr.active() {
+        Some(s) if mgr.is_master(s.id) => {
+            Span::styled(" MASTER ", Style::default().fg(Color::Black).bg(Color::Yellow))
+        }
+        _ => Span::raw(""),
+    };
+
     let hints = Span::styled(
         " Ctrl+A: prefix  ?:help  q:quit",
         Style::default().fg(Color::DarkGray),
     );
 
-    frame.render_widget(Paragraph::new(Line::from(vec![mode_span, pane_info, hints])), area);
+    frame.render_widget(
+        Paragraph::new(Line::from(vec![mode_span, master_span, pane_info, hints])),
+        area,
+    );
 }
 
 fn render_rename_popup(frame: &mut Frame, app: &App) {
@@ -249,6 +261,7 @@ fn render_help_overlay(frame: &mut Frame) {
         Line::from("  Prefix + ,        Rename current pane"),
         Line::from("  Prefix + x        Kill current pane"),
         Line::from("  Prefix + z        Toggle zoom (fullscreen)"),
+        Line::from("  Prefix + m        Toggle master pane"),
         Line::from("  Prefix + %        Split vertical"),
         Line::from("  Prefix + \"        Split horizontal"),
         Line::from("  Prefix + s        Pane status monitor"),
@@ -308,10 +321,15 @@ fn render_status_overlay(frame: &mut Frame, app: &App) {
             };
 
             let max_label = (popup_width as usize).saturating_sub(18).max(10);
-            let label = if session.label.len() > max_label {
-                format!("{}…", &session.label[..max_label.saturating_sub(1)])
+            let base_label = if mgr.is_master(session.id) {
+                format!("{} [MASTER]", session.label)
             } else {
                 session.label.clone()
+            };
+            let label = if base_label.len() > max_label {
+                format!("{}…", &base_label[..max_label.saturating_sub(1)])
+            } else {
+                base_label
             };
             let padding = " ".repeat(max_label.saturating_sub(label.len()));
 
