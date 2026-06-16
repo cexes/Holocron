@@ -1,6 +1,7 @@
 mod app;
 mod config;
 mod error;
+mod headless;
 mod ipc;
 mod mcp;
 mod terminal;
@@ -22,6 +23,11 @@ struct Cli {
     #[arg(long)]
     mcp: bool,
 
+    /// Run the terminal manager + IPC server with no TUI attached.
+    /// Auto-spawned by `--mcp` when no session is already running.
+    #[arg(long)]
+    headless: bool,
+
     /// Path to config file (default: ~/.config/holocron/config.toml)
     #[arg(long, value_name = "FILE")]
     config: Option<PathBuf>,
@@ -42,6 +48,8 @@ async fn main() -> Result<()> {
 
     if cli.mcp {
         mcp::run_bridge(cli.session).await
+    } else if cli.headless {
+        headless::run(config).await
     } else {
         tui::run(config).await
     }

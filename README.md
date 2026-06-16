@@ -105,10 +105,15 @@ Default prefix: **Ctrl+A** (configurable)
 
 Holocron is already registered in `~/.claude.json`. To use it:
 
-1. Open `holocron` in one terminal
-2. Open `claude` in another terminal
-3. Run `/mcp` to confirm `holocron` appears in the list
-4. Ask Claude to interact with your terminals
+1. Open `claude`
+2. Run `/mcp` to confirm `holocron` appears in the list
+3. Ask Claude to interact with your terminals
+
+You don't need to have `holocron` open yourself first — if no TUI session is
+running, the MCP bridge transparently spawns a headless session (no UI, just
+the terminal manager + IPC server) so the tools always have something to
+connect to. If you do have the TUI open, Claude attaches to that session
+instead and you can watch the panes update live.
 
 ### Available MCP tools
 
@@ -124,7 +129,7 @@ Holocron is already registered in `~/.claude.json`. To use it:
 
 ## How it works
 
-Holocron uses two modes in a single binary to keep TUI stdio separate from MCP stdio:
+Holocron uses three modes in a single binary to keep TUI stdio separate from MCP stdio:
 
 ```
 Claude Code
@@ -133,11 +138,18 @@ Claude Code
 holocron --mcp        ← bridge: translates MCP → IPC
     │ local socket (/tmp/holocron-{session}.sock)
     ▼
-holocron              ← TUI: manages panes and PTYs
+holocron               OR   holocron --headless
+  TUI: panes + PTYs          no UI: just panes + PTYs
     │ portable-pty (ConPTY on Windows, Unix PTY on Mac/Linux)
     ▼
 [ pane 0 ]  [ pane 1 ]  [ pane 2 ]
 ```
+
+If the bridge finds no live session (no TUI, no headless daemon, or a stale
+one left behind by a crash) it spawns `holocron --headless` detached in the
+background and waits for it to come up before forwarding the MCP call. The
+headless daemon keeps running independently of the bridge, the same way a
+tmux server outlives any single client.
 
 ---
 

@@ -14,6 +14,21 @@ impl IpcClient {
         Self { session_id }
     }
 
+    /// Probes whether the session's IPC socket is actually reachable,
+    /// without sending a request. Used to detect a stale session file
+    /// left behind by a crashed TUI or headless daemon.
+    pub async fn is_alive(&self) -> bool {
+        let Ok(name) = crate::ipc::server::socket_name(&self.session_id)
+            .to_ns_name::<GenericNamespaced>()
+        else {
+            return false;
+        };
+
+        interprocess::local_socket::tokio::Stream::connect(name)
+            .await
+            .is_ok()
+    }
+
     pub async fn send(&self, req: IpcRequest) -> Result<IpcResponse> {
         let name = crate::ipc::server::socket_name(&self.session_id)
             .to_ns_name::<GenericNamespaced>()?;

@@ -20,12 +20,12 @@ Claude can list, read, and write to terminals **on demand** — it never acts au
 }
 ```
 
-3. Start `holocron` in a terminal. Open your panes.
-
-4. In Claude Code, you can now ask:
+3. In Claude Code, you can now ask:
    - *"list my terminals"*
    - *"what is terminal 2 doing?"*
    - *"send 'npm test' to terminal 3"*
+
+   You don't need to start `holocron` yourself first — see below.
 
 ## How it works
 
@@ -36,13 +36,23 @@ Claude Code (MCP client)
 holocron --mcp  ← spawned by Claude Code
     │ IPC socket
     ▼
-holocron (TUI)  ← already running
+holocron (TUI)  OR  holocron --headless  ← whichever is already running
     │
     ▼
 [ your terminal panes ]
 ```
 
-Claude Code spawns `holocron --mcp` as a subprocess. That process connects to the running TUI instance via a local socket and bridges requests.
+Claude Code spawns `holocron --mcp` as a subprocess. That process connects
+to a running session via a local socket and bridges requests. If it doesn't
+find a live session — no TUI open, no headless daemon, or a stale one left
+behind by a crash — it spawns `holocron --headless` detached in the
+background (no UI, just the terminal manager + IPC server) and waits for it
+to come up before bridging. The headless daemon then keeps running on its
+own, independent of the bridge process, so panes survive across multiple
+Claude Code MCP connections — the same way a tmux server outlives any
+single client. Open the TUI (`holocron`) at any point if you want to watch
+the panes live; it starts its own session rather than attaching to a
+headless one.
 
 ## Available tools
 
